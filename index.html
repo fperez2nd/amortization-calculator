@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Amortization Calculator</title>
+  <meta name="description" content="Loan and mortgage amortization calculator with extra payments, PITI, charts and CSV export.">
+  <link rel="stylesheet" href="style.css?v=45">
+</head>
+<body>
+  <header>
+    <h1>Amortization Calculator</h1>
+    <p class="sub">Monthly payment, full schedule, and what extra payments save you.</p>
+  </header>
+
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Scenarios"></nav>
+
+  <main>
+    <form id="form" autocomplete="off">
+      <div class="name-row">
+        <label>Scenario name
+          <input type="text" id="scenarioName" maxlength="40">
+        </label>
+        <button type="button" id="removeScenario" hidden>Remove</button>
+      </div>
+      <fieldset>
+        <legend>Loan</legend>
+        <label>Start from
+          <select id="mode">
+            <option value="new">A new loan</option>
+            <option value="progress">Where my loan is today</option>
+          </select>
+        </label>
+        <label data-show="progress" hidden>Original loan amount <span class="unit">$</span>
+          <input type="text" inputmode="decimal" id="originalAmount" value="">
+        </label>
+        <label><span data-show="new">Loan amount</span><span data-show="progress" hidden>Current principal balance</span> <span class="unit">$</span>
+          <input type="text" inputmode="decimal" id="principal" value="" required>
+        </label>
+        <label data-show="progress" hidden>Interest paid so far <span class="unit">$, optional</span>
+          <input type="text" inputmode="decimal" id="interestPaid" value="">
+        </label>
+        <label>Interest rate <span class="unit">% / yr</span>
+          <input type="text" inputmode="decimal" id="rate" value="6.5" required>
+        </label>
+        <label><span data-show="new">Term</span><span data-show="progress" hidden>Original term</span> <span class="unit">years</span>
+          <input type="number" id="years" min="1" max="50" step="1" value="30" required>
+        </label>
+        <label data-show="progress" hidden>P&amp;I payment <span class="unit">$ / mo, calculated</span>
+          <input type="text" id="payment" readonly tabindex="-1" class="computed">
+        </label>
+        <label><span data-show="new">First payment</span><span data-show="progress" hidden>Next payment due</span>
+          <input type="date" id="start" required>
+        </label>
+        <label data-show="new">Closing date <span class="unit">(optional, for prepaid interest)</span>
+          <input type="date" id="closingDate">
+        </label>
+        <input type="hidden" id="dayBasis" value="365">
+        <div class="prepaid" id="prepaidBox" hidden></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Extra monthly payments</legend>
+        <label>Extra each month <span class="unit">$</span>
+          <input type="text" inputmode="decimal" id="extraMonthly" value="0">
+        </label>
+        <div class="sub-legend group">One-time payments</div>
+        <div id="lumps"></div>
+        <button type="button" id="addLump" class="link">+ Add one-time payment</button>
+        <div id="seriesWrap">
+          <div class="sub-legend group">Payment series</div>
+          <div id="series"></div>
+          <button type="button" id="addSeries" class="link">+ Add payment series</button>
+        </div>
+      </fieldset>
+
+
+      <details id="mortgage">
+        <summary>Mortgage costs (taxes, insurance, PMI, HOA)</summary>
+        <fieldset>
+          <label><span data-show="new">Home value</span><span data-show="progress" hidden>Original home value</span> <span class="unit">$</span>
+            <input type="text" inputmode="decimal" id="homeValue" value="">
+          </label>
+          <label>Property tax <span class="unit">$ / yr</span>
+            <input type="text" inputmode="decimal" id="tax" value="0">
+          </label>
+          <label>Home insurance <span class="unit">$ / yr</span>
+            <input type="text" inputmode="decimal" id="insurance" value="0">
+          </label>
+          <label data-show="new">PMI <span class="unit">% of loan / yr</span>
+            <input type="text" inputmode="decimal" id="pmi" value="0">
+          </label>
+          <label data-show="progress" hidden>PMI <span class="unit">$ / mo</span>
+            <input type="text" inputmode="decimal" id="pmiMonthly" value="0">
+          </label>
+          <label>HOA <span class="unit">$ / mo</span>
+            <input type="text" inputmode="decimal" id="hoa" value="0">
+          </label>
+          <p class="hint">PMI stops automatically once the scheduled balance reaches 78% of the home value. Needs a home value to apply. The home value also adds an LTV (loan-to-value) column to the schedule.</p>
+        </fieldset>
+      </details>
+
+      <details id="recastBox">
+        <summary>Recast</summary>
+        <fieldset>
+          <label>After an extra payment
+            <select id="recast">
+              <option value="none">Keep payment, pay off sooner</option>
+              <option value="lumps">Recast after one-time payments</option>
+              <option value="all">Recast after every extra payment</option>
+            </select>
+          </label>
+          <label id="feeWrap" hidden>Recast fee <span class="unit">$ each time</span>
+            <input type="text" inputmode="decimal" id="recastFee" value="">
+          </label>
+          <p class="hint">A recast re-figures your payment on the lower balance over the time left on the loan. The end date stays the same; the monthly payment goes down. Lenders usually only recast after a lump sum, and often charge a fee.</p>
+        </fieldset>
+      </details>
+    </form>
+
+    <section id="results" aria-live="polite">
+      <p id="error" class="error" hidden></p>
+      <p id="prompt" class="prompt" hidden></p>
+      <div class="cards" id="cards">
+        <div class="card primary"><span class="k">Monthly payment</span><span class="v" id="outPayment">-</span><span class="d" id="outPaymentDetail"></span></div>
+        <div class="card"><span class="k">Total interest</span><span class="v" id="outInterest">-</span><span class="d" id="outInterestDetail"></span></div>
+        <div class="card"><span class="k">Payoff</span><span class="v" id="outPayoff">-</span><span class="d" id="outPayoffDetail"></span></div>
+        <div class="card"><span class="k">Total paid</span><span class="v" id="outTotal">-</span><span class="d" id="outTotalDetail"></span></div>
+      </div>
+
+      <div class="panel picker" id="pickerPanel" hidden>
+        <div class="series-filter" id="seriesFilter" role="group" aria-label="Scenarios shown in the chart and compared"></div>
+      </div>
+
+      <div class="panel" id="chartPanel">
+        <div class="panel-head">
+          <h2>Balance over time</h2>
+          <div class="legend" id="legend"></div>
+        </div>
+        <div id="chart" class="chart"></div>
+      </div>
+
+      <div class="panel" id="comparePanel" hidden>
+        <div class="panel-head"><h2>Compare scenarios</h2></div>
+        <p class="empty" id="compareEmpty" hidden>Select two or more scenarios to compare them.</p>
+        <div class="table-wrap compare-wrap" id="compareWrap">
+          <table id="compare" class="compare"></table>
+        </div>
+      </div>
+
+      <div class="panel" id="schedulePanel">
+        <div class="panel-head">
+          <h2>Schedule: <span class="scenario-name"></span></h2>
+          <div class="controls">
+            <div class="seg" role="group" aria-label="Schedule view">
+              <button type="button" data-view="month" class="on">Monthly</button>
+              <button type="button" data-view="year">Yearly</button>
+            </div>
+            <button type="button" id="csv">Download CSV</button>
+            <button type="button" id="share">Copy link</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="table"><thead></thead><tbody></tbody></table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Estimates only. Your lender's figures may differ due to rounding, escrow changes and fees. Runs entirely in your browser; nothing is sent anywhere.</p>
+  </footer>
+
+  <template id="lumpRow">
+    <div class="lump">
+      <label><span class="dateLabel">Date</span> <input type="date" class="lumpDate"></label>
+      <label>Amount <span class="unit">$</span> <input type="text" inputmode="decimal" class="lumpAmt"></label>
+      <label class="countWrap">Number of monthly payments <input type="text" inputmode="numeric" class="lumpCount"></label>
+      <button type="button" class="remove" aria-label="Remove payment">&times;</button>
+      <p class="lumpNote" hidden></p>
+    </div>
+  </template>
+
+  <script src="app.js?v=45"></script>
+</body>
+</html>
