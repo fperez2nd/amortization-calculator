@@ -199,3 +199,6 @@ input.bad { border-color: var(--s2); box-shadow: 0 0 0 1px var(--s2); }
 .recastNote { grid-column: 1 / -1; margin: -4px 0 8px; font-size: 0.8rem; color: var(--accent-2); }
 .recastNote.bad { color: var(--text); border-left: 3px solid var(--s2); padding-left: 7px; }
 #addRecast { margin-bottom: 8px; }
+tr.msline td { text-align: left; white-space: normal; font-size: 0.82rem; font-weight: 600; padding: 6px 10px; background: var(--surface); }
+tr.ms1 td { box-shadow: inset 4px 0 0 var(--s1); color: var(--text); }
+tr.ms2 td { box-shadow: inset 4px 0 0 var(--s3); color: var(--text); }

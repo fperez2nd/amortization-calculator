@@ -900,6 +900,33 @@ if (typeof document !== "undefined") {
       ltv: ltv
     };
   }
+  function milestones(res) {
+    const {input: input, actual: actual} = res;
+    const interest = actual.rows.findIndex(r => r.interest <= r.principal);
+    const term = input.mode === "progress" ? input.termLeft : Math.round(input.years * 12);
+    let halve = -1, halvePmt = 0;
+    if (term) {
+      const target = actual.payment / 2;
+      halve = actual.rows.findIndex((r, i) => {
+        const left = term - (i + 1);
+        if (!(r.balance > .005) || left < 1) return false;
+        halvePmt = monthlyPayment(r.balance, input.rate, left);
+        return halvePmt <= target;
+      });
+    }
+    return {
+      interest: interest,
+      halve: halve,
+      halvePmt: halvePmt
+    };
+  }
+  function milestoneLines(res, i, cols, when) {
+    const ms = milestones(res), r = res.actual.rows[i];
+    let out = "";
+    if (i === ms.interest) out += `<tr class="msline ms1"><td colspan="${cols}">Interest ≤ principal from payment #${i + 1} (${when}): interest ${fmt(r.interest)}, principal ${fmt(r.principal)}</td></tr>`;
+    if (i === ms.halve) out += `<tr class="msline ms2"><td colspan="${cols}">A recast after payment #${i + 1} (${when}) would cut P&amp;I to ${fmt(ms.halvePmt)}, half or less of ${fmt(res.actual.payment)}</td></tr>`;
+    return out;
+  }
   function drawTable(res) {
     const {input: input, actual: actual, escrow: escrow} = res;
     const {head: head, rows: rows, showPmi: showPmi, showEsc: showEsc, showPmt: showPmt, showLtv: showLtv, ltv: ltv} = scheduleData(res);
@@ -913,7 +940,7 @@ if (typeof document !== "undefined") {
       rows.forEach((r, i) => {
         const src = actual.rows[i];
         const lump = input.lumps[i] ? ' class="lumpmark"' : "";
-        html += `<tr${src.recastTo ? ' class="recast" title="Recast: next payment ' + fmt(src.recastTo) + '"' : ""}><td>${r[0]}</td><td>${r[1]}</td>` + r.slice(2).map((v, k) => `<td${k + 2 === extraCol ? lump : ""}>${cell(v, k + 2)}</td>`).join("") + "</tr>";
+        html += `<tr${src.recastTo ? ' class="recast" title="Recast: next payment ' + fmt(src.recastTo) + '"' : ""}><td>${r[0]}</td><td>${r[1]}</td>` + r.slice(2).map((v, k) => `<td${k + 2 === extraCol ? lump : ""}>${cell(v, k + 2)}</td>`).join("") + "</tr>" + milestoneLines(res, i, head.length, r[1]);
       });
     } else {
       const yh = [ "Year", ...showPmt ? [ "P&I payment" ] : [], "Principal", "Interest", "Interest to date", "Extra", "Total to loan", ...showPmi ? [ "PMI" ] : [], ...showEsc ? [ "Tax/Ins/HOA" ] : [], "End balance", ...showLtv ? [ "LTV %" ] : [] ];
@@ -939,8 +966,10 @@ if (typeof document !== "undefined") {
         a.cum = r.cumInterest;
         years.set(yr, a);
       });
+      const ms = milestones(res);
       for (const [yr, a] of years) {
-        html += `<tr><td>${yr}</td>` + (showPmt ? `<td>${fmt(a.pmt)}</td>` : "") + `<td>${fmt(a.p)}</td><td>${fmt(a.i)}</td><td>${fmt(a.cum)}</td><td>${fmt(a.e)}</td><td>${fmt(a.p + a.i + a.e)}</td>` + (showPmi ? `<td>${fmt(a.pmi)}</td>` : "") + (showEsc ? `<td>${fmt(a.esc)}</td>` : "") + `<td>${fmt(a.bal)}</td>` + (showLtv ? `<td>${ltv(a.bal).toFixed(1)}%</td>` : "") + "</tr>";
+        const lines = [ ms.interest, ms.halve ].filter((v, k, arr) => v >= 0 && arr.indexOf(v) === k && dateFor(input.start, v).y === yr).map(i => milestoneLines(res, i, yh.length, label(dateFor(input.start, i)))).join("");
+        html += `<tr><td>${yr}</td>` + (showPmt ? `<td>${fmt(a.pmt)}</td>` : "") + `<td>${fmt(a.p)}</td><td>${fmt(a.i)}</td><td>${fmt(a.cum)}</td><td>${fmt(a.e)}</td><td>${fmt(a.p + a.i + a.e)}</td>` + (showPmi ? `<td>${fmt(a.pmi)}</td>` : "") + (showEsc ? `<td>${fmt(a.esc)}</td>` : "") + `<td>${fmt(a.bal)}</td>` + (showLtv ? `<td>${ltv(a.bal).toFixed(1)}%</td>` : "") + "</tr>" + lines;
       }
     }
     tbody.innerHTML = html;
