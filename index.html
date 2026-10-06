@@ -5,12 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Amortization Calculator</title>
   <meta name="description" content="Loan and mortgage amortization calculator with extra payments, PITI, charts and CSV export.">
-  <link rel="stylesheet" href="style.css?v=45">
+  <script>(function () { try { var t = localStorage.getItem('theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {} })();</script>
+  <link rel="stylesheet" href="style.css?v=46">
 </head>
 <body>
   <header>
-    <h1>Amortization Calculator</h1>
-    <p class="sub">Monthly payment, full schedule, and what extra payments save you.</p>
+    <div>
+      <h1>Amortization Calculator</h1>
+      <p class="sub">Monthly payment, full schedule, and what extra payments save you.</p>
+    </div>
+    <div class="seg theme" id="themeToggle" role="group" aria-label="Color theme">
+      <button type="button" data-theme="auto">Auto</button>
+      <button type="button" data-theme="light">Light</button>
+      <button type="button" data-theme="dark">Dark</button>
+    </div>
   </header>
 
   <nav class="tabs" id="tabs" role="tablist" aria-label="Scenarios"></nav>
@@ -181,6 +189,6 @@
     </div>
   </template>
 
-  <script src="app.js?v=45"></script>
+  <script src="app.js?v=46"></script>
 </body>
 </html>

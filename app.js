@@ -938,8 +938,17 @@ if (typeof document !== "undefined") {
       $("share").textContent = "Copy link";
     }, 1500);
   };
-  document.querySelectorAll(".seg button").forEach(b => b.onclick = () => {
-    document.querySelectorAll(".seg button").forEach(o => o.classList.toggle("on", o === b));
+  function setTheme(t) {
+    if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
+    try {
+      if (t === "light" || t === "dark") localStorage.setItem("theme", t); else localStorage.removeItem("theme");
+    } catch {}
+    document.querySelectorAll("#themeToggle button").forEach(b => b.classList.toggle("on", b.dataset.theme === (t || "auto")));
+  }
+  document.querySelectorAll("#themeToggle button").forEach(b => b.onclick = () => setTheme(b.dataset.theme));
+  setTheme(document.documentElement.dataset.theme || "auto");
+  document.querySelectorAll(".seg:not(.theme) button").forEach(b => b.onclick = () => {
+    document.querySelectorAll(".seg:not(.theme) button").forEach(o => o.classList.toggle("on", o === b));
     view = b.dataset.view;
     if (usable(results[active])) drawTable(results[active]);
   });

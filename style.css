@@ -14,7 +14,7 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #111418;
     --surface: #1a1f25;
     --text: #e6e9ed;
@@ -30,6 +30,21 @@
     color-scheme: dark;
   }
 }
+:root[data-theme="dark"] {
+  --bg: #111418;
+  --surface: #1a1f25;
+  --text: #e6e9ed;
+  --muted: #9aa4b0;
+  --border: #2c333c;
+  --accent: #6b9bff;
+  --accent-2: #2dd4bf;
+  --row-alt: #1f252c;
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  --s4: #c98500;
+  color-scheme: dark;
+}
 * { box-sizing: border-box; }
 body {
   margin: 0;
@@ -38,7 +53,8 @@ body {
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 header, main, footer, .tabs { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
-header { padding-top: 28px; padding-bottom: 8px; }
+header { padding-top: 28px; padding-bottom: 8px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px 16px; }
+.theme { flex: none; }
 h1 { margin: 0; font-size: 1.6rem; }
 h2 { margin: 0; font-size: 1.05rem; }
 .sub { margin: 4px 0 0; color: var(--muted); }
