@@ -24,9 +24,11 @@ function amortize(opts) {
   let balance = principal;
   let totalInterest = 0;
   let totalPmi = 0;
-  for (let i = 0; balance > .005 && i < months * 2; i++) {
+  const term = Math.max(opts.termLeft || months, months);
+  for (let i = 0; balance > .005 && i < term * 2; i++) {
     const interest = round2(balance * r);
-    let scheduled = i === months - 1 ? balance : Math.min(pmt - interest, balance);
+    const lastIdx = recasts.length ? (opts.termLeft || months) - 1 : months - 1;
+    let scheduled = i === lastIdx ? balance : Math.min(pmt - interest, balance);
     if (scheduled < 0) scheduled = 0;
     let extra = Math.min(extraMonthly + (lumps[i] || 0), round2(balance - scheduled));
     if (extra < 0) extra = 0;
@@ -47,7 +49,7 @@ function amortize(opts) {
       cumInterest: round2(totalInterest)
     };
     rows.push(row);
-    const remaining = months - (i + 1);
+    const remaining = (opts.termLeft || months) - (i + 1);
     if (i in recastAt && balance > .005 && remaining > 0) {
       pmt = monthlyPayment(balance, rate, remaining);
       row.recastTo = pmt;
@@ -139,6 +141,7 @@ function compute(input) {
     extraMonthly: input.extraMonthly,
     lumps: input.lumps,
     recastAt: input.recastAt,
+    termLeft: input.termLeft,
     pmiCutoff: cutoff
   });
   const escrow = round2(input.tax / 12 + input.insurance / 12 + input.hoa);
@@ -173,7 +176,7 @@ if (typeof document !== "undefined") {
     '"': "&quot;",
     "'": "&#39;"
   }[ch]));
-  const fields = [ "mode", "originalAmount", "principal", "interestPaid", "rate", "years", "start", "closingDate", "dayBasis", "extraMonthly", "homeValue", "tax", "insurance", "pmi", "pmiMonthly", "hoa" ];
+  const fields = [ "mode", "originalAmount", "principal", "interestPaid", "rate", "years", "origStart", "start", "closingDate", "dayBasis", "extraMonthly", "homeValue", "tax", "insurance", "pmi", "pmiMonthly", "hoa" ];
   const MORTGAGE_FIELDS = [ "homeValue", "tax", "insurance", "pmi", "pmiMonthly", "hoa" ];
   const MAX_SCENARIOS = 4;
   const MONTHS = [ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" ];
@@ -306,9 +309,19 @@ if (typeof document !== "undefined") {
         before: count - idxs.length
       };
     });
+    const progress = s.v.mode === "progress";
+    const origStart = parseMonth(s.v.origStart);
+    const years = Math.max(parseFloat(s.v.years) || 0, 1 / 12);
+    const termLeft = progress ? origStart ? monthKey(origStart) + Math.round(years * 12) - monthKey(start) : null : null;
     const recastAt = {};
     const recastIdx = (s.recasts || []).map(([d, f]) => {
       const dm = parseMonth(d), fee = parseAmount(f);
+      if (progress && !origStart) return {
+        skip: "needStart"
+      };
+      if (progress && termLeft < 1) return {
+        skip: "matured"
+      };
       if (!dm) return {
         skip: "date"
       };
@@ -333,6 +346,7 @@ if (typeof document !== "undefined") {
       lumpIdx: lumpIdx,
       recastAt: recastAt,
       recastIdx: recastIdx,
+      termLeft: termLeft,
       mode: s.v.mode === "progress" ? "progress" : "new",
       pmiMonthly: num("pmiMonthly"),
       originalAmount: num("originalAmount"),
@@ -591,6 +605,12 @@ if (typeof document !== "undefined") {
           bad = true;
         } else if (st.skip === "before") {
           text = `Not counted: ${label(st.date)} is before the ${which} (${label(res.input.start)}).`;
+          bad = true;
+        } else if (st.skip === "needStart") {
+          text = "Not counted: enter the Original first payment date in the Loan section, so the recast uses the true remaining term.";
+          bad = true;
+        } else if (st.skip === "matured") {
+          text = "Not counted: the original first payment and term put maturity before the next payment due. Check both.";
           bad = true;
         } else if (st.skip === "dup") {
           text = `Not counted: there's already a recast in ${label(st.date)}.`;
@@ -1037,6 +1057,7 @@ if (typeof document !== "undefined") {
     if ($("mode").value === "progress") {
       if (!(orig > 0) && amt > 0) $("originalAmount").value = formatMoney(amt);
       $("principal").value = formatMoney("");
+      if (!$("origStart").value && $("start").value) $("origStart").value = $("start").value;
     } else if (orig > 0) {
       $("principal").value = formatMoney(orig);
     }
