@@ -192,3 +192,10 @@ input.bad { border-color: var(--s2); box-shadow: 0 0 0 1px var(--s2); }
 .prepaid label { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; color: var(--text); font-size: 0.86rem; cursor: pointer; }
 .prepaid input { width: auto; margin: 0; padding: 0; accent-color: var(--accent); }
 .prepaid strong { font-variant-numeric: tabular-nums; min-width: 6.5em; }
+.recastRow { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) auto; gap: 0 8px; align-items: end; }
+.recastRow label { margin-bottom: 8px; }
+.recastRow input { padding-left: 7px; padding-right: 4px; }
+.recastRow .remove { margin-bottom: 8px; padding: 6px 10px; }
+.recastNote { grid-column: 1 / -1; margin: -4px 0 8px; font-size: 0.8rem; color: var(--accent-2); }
+.recastNote.bad { color: var(--text); border-left: 3px solid var(--s2); padding-left: 7px; }
+#addRecast { margin-bottom: 8px; }

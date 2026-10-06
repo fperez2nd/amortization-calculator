@@ -6,7 +6,7 @@
   <title>Amortization Calculator</title>
   <meta name="description" content="Loan and mortgage amortization calculator with extra payments, PITI, charts and CSV export.">
   <script>(function () { try { var t = localStorage.getItem('theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {} })();</script>
-  <link rel="stylesheet" href="style.css?v=48">
+  <link rel="stylesheet" href="style.css?v=49">
 </head>
 <body>
   <header>
@@ -108,16 +108,8 @@
       <details id="recastBox">
         <summary>Recast</summary>
         <fieldset>
-          <label>After an extra payment
-            <select id="recast">
-              <option value="none">Keep payment, pay off sooner</option>
-              <option value="lumps">Recast after one-time payments</option>
-              <option value="all">Recast after every extra payment</option>
-            </select>
-          </label>
-          <label id="feeWrap" hidden>Recast fee <span class="unit">$ each time</span>
-            <input type="text" inputmode="decimal" id="recastFee" value="">
-          </label>
+          <div id="recastRows"></div>
+          <button type="button" id="addRecast" class="link">+ Add recast</button>
           <p class="hint">A recast re-figures your payment on the lower balance over the time left on the loan. The end date stays the same; the monthly payment goes down. Lenders usually only recast after a lump sum, and often charge a fee.</p>
         </fieldset>
       </details>
@@ -176,6 +168,15 @@
     <p>Estimates only. Your lender's figures may differ due to rounding, escrow changes and fees.</p>
   </footer>
 
+  <template id="recastRow">
+    <div class="recastRow">
+      <label>Date <input type="date" class="recastDate"></label>
+      <label>Fee <span class="unit">$</span> <input type="text" inputmode="decimal" class="recastFee"></label>
+      <button type="button" class="remove" aria-label="Remove recast">&times;</button>
+      <p class="recastNote" hidden></p>
+    </div>
+  </template>
+
   <template id="lumpRow">
     <div class="lump">
       <label><span class="dateLabel">Date</span> <input type="date" class="lumpDate"></label>
@@ -186,6 +187,6 @@
     </div>
   </template>
 
-  <script src="app.js?v=48"></script>
+  <script src="app.js?v=49"></script>
 </body>
 </html>

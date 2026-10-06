@@ -15,7 +15,7 @@ function amortize(opts) {
   const payment = opts.payment > 0 ? round2(opts.payment) : monthlyPayment(principal, rate, months);
   const extraMonthly = opts.extraMonthly || 0;
   const lumps = opts.lumps || {};
-  const recast = opts.recast || "none";
+  const recastAt = opts.recastAt || {};
   const pmiMonthly = !(opts.homeValue > 0) ? 0 : opts.pmiMonthly > 0 ? round2(opts.pmiMonthly) : opts.pmiRate > 0 ? round2(principal * opts.pmiRate / 100 / 12) : 0;
   const pmiLimit = opts.homeValue * .78;
   const rows = [];
@@ -48,13 +48,13 @@ function amortize(opts) {
     };
     rows.push(row);
     const remaining = months - (i + 1);
-    const trigger = recast === "all" ? extra > 0 : recast === "lumps" ? (lumps[i] || 0) > 0 && extra > 0 : false;
-    if (trigger && balance > .005 && remaining > 0) {
+    if (i in recastAt && balance > .005 && remaining > 0) {
       pmt = monthlyPayment(balance, rate, remaining);
       row.recastTo = pmt;
       recasts.push({
         n: i + 1,
-        payment: pmt
+        payment: pmt,
+        fee: recastAt[i] || 0
       });
     }
   }
@@ -63,7 +63,7 @@ function amortize(opts) {
     finalPayment: pmt,
     rows: rows,
     recasts: recasts,
-    recastFees: round2(recasts.length * (opts.recastFee || 0)),
+    recastFees: round2(recasts.reduce((t, r) => t + r.fee, 0)),
     months: rows.length,
     totalInterest: round2(totalInterest),
     totalPmi: round2(totalPmi)
@@ -138,8 +138,7 @@ function compute(input) {
     ...base,
     extraMonthly: input.extraMonthly,
     lumps: input.lumps,
-    recast: input.recast,
-    recastFee: input.recastFee,
+    recastAt: input.recastAt,
     pmiCutoff: cutoff
   });
   const escrow = round2(input.tax / 12 + input.insurance / 12 + input.hoa);
@@ -174,14 +173,9 @@ if (typeof document !== "undefined") {
     '"': "&quot;",
     "'": "&#39;"
   }[ch]));
-  const fields = [ "mode", "originalAmount", "principal", "interestPaid", "rate", "years", "start", "closingDate", "dayBasis", "extraMonthly", "recast", "recastFee", "homeValue", "tax", "insurance", "pmi", "pmiMonthly", "hoa" ];
+  const fields = [ "mode", "originalAmount", "principal", "interestPaid", "rate", "years", "start", "closingDate", "dayBasis", "extraMonthly", "homeValue", "tax", "insurance", "pmi", "pmiMonthly", "hoa" ];
   const MORTGAGE_FIELDS = [ "homeValue", "tax", "insurance", "pmi", "pmiMonthly", "hoa" ];
   const MAX_SCENARIOS = 4;
-  const RECAST_LABEL = {
-    none: "No recast",
-    lumps: "After one-time payments",
-    all: "After every extra payment"
-  };
   const MONTHS = [ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" ];
   let view = "month";
   const MAX_SERIES = 600;
@@ -213,8 +207,8 @@ if (typeof document !== "undefined") {
     return /^(\d+\.?\d*|\.\d+)$/.test(t) ? parseFloat(t) : NaN;
   }
   const LENIENT = [ ...document.querySelectorAll('input[inputmode="decimal"]:not([readonly])') ].map(el => el.id).filter(Boolean);
-  const MONEY = [ "originalAmount", "principal", "interestPaid", "extraMonthly", "recastFee", "homeValue", "tax", "insurance", "pmiMonthly", "hoa" ];
-  const isMoney = el => MONEY.includes(el.id) || el.classList.contains("lumpAmt");
+  const MONEY = [ "originalAmount", "principal", "interestPaid", "extraMonthly", "homeValue", "tax", "insurance", "pmiMonthly", "hoa" ];
+  const isMoney = el => MONEY.includes(el.id) || el.classList.contains("lumpAmt") || el.classList.contains("recastFee");
   function formatMoney(v) {
     const x = parseAmount(v);
     if (x === null) return "0.00";
@@ -235,14 +229,14 @@ if (typeof document !== "undefined") {
     fields.forEach(f => {
       v[f] = $(f).defaultValue ?? "";
     });
-    v.recast = "none";
     v.mode = "new";
     v.dayBasis = "365";
     v.start = defaultStart;
     return {
       name: "Original",
       v: v,
-      lumps: []
+      lumps: [],
+      recasts: []
     };
   }
   function formToScenario(s) {
@@ -251,6 +245,7 @@ if (typeof document !== "undefined") {
     });
     s.name = $("scenarioName").value.trim() || s.name;
     s.lumps = [ ...document.querySelectorAll(".lump") ].map(row => [ row.querySelector(".lumpDate").value, row.querySelector(".lumpAmt").value, row.querySelector(".lumpCount").value, row.dataset.kind ]);
+    s.recasts = [ ...document.querySelectorAll(".recastRow") ].map(row => [ row.querySelector(".recastDate").value, row.querySelector(".recastFee").value ]);
   }
   function scenarioToForm(s) {
     fields.forEach(f => {
@@ -262,8 +257,9 @@ if (typeof document !== "undefined") {
     const rows = [ ...s.lumps.filter(l => kindOf(l) === "one"), ...s.lumps.filter(l => kindOf(l) === "series") ];
     rows.forEach(l => addLump(l[0], l[1], l[2], kindOf(l)));
     $("mortgage").open = MORTGAGE_FIELDS.some(f => parseAmount(s.v[f]) > 0);
-    $("recastBox").open = !!s.v.recast && s.v.recast !== "none";
-    syncRecastFee();
+    $("recastRows").innerHTML = "";
+    (s.recasts || []).forEach(([d, f]) => addRecast(d, f));
+    $("recastBox").open = (s.recasts || []).length > 0;
     syncMode();
   }
   function inputFrom(s) {
@@ -310,8 +306,33 @@ if (typeof document !== "undefined") {
         before: count - idxs.length
       };
     });
+    const recastAt = {};
+    const recastIdx = (s.recasts || []).map(([d, f]) => {
+      const dm = parseMonth(d), fee = parseAmount(f);
+      if (!dm) return {
+        skip: "date"
+      };
+      if (Number.isNaN(fee)) return {
+        skip: "fee"
+      };
+      const idx = monthKey(dm) - monthKey(start);
+      if (idx < 0) return {
+        skip: "before",
+        date: dm
+      };
+      if (idx in recastAt) return {
+        skip: "dup",
+        date: dm
+      };
+      recastAt[idx] = fee || 0;
+      return {
+        idx: idx
+      };
+    });
     return {
       lumpIdx: lumpIdx,
+      recastAt: recastAt,
+      recastIdx: recastIdx,
       mode: s.v.mode === "progress" ? "progress" : "new",
       pmiMonthly: num("pmiMonthly"),
       originalAmount: num("originalAmount"),
@@ -324,8 +345,6 @@ if (typeof document !== "undefined") {
       start: start,
       extraMonthly: num("extraMonthly"),
       lumps: lumps,
-      recast: RECAST_LABEL[s.v.recast] ? s.v.recast : "none",
-      recastFee: num("recastFee"),
       homeValue: num("homeValue"),
       tax: num("tax"),
       insurance: num("insurance"),
@@ -354,8 +373,15 @@ if (typeof document !== "undefined") {
     };
     (series ? $("series") : $("lumps")).appendChild(node);
   }
-  function syncRecastFee() {
-    $("feeWrap").hidden = $("recast").value === "none";
+  function addRecast(date = "", fee = "") {
+    const node = $("recastRow").content.firstElementChild.cloneNode(true);
+    node.querySelector(".recastDate").value = asDate(date) || $("start").value;
+    node.querySelector(".recastFee").value = formatMoney(fee);
+    node.querySelector(".remove").onclick = () => {
+      node.remove();
+      update();
+    };
+    $("recastRows").appendChild(node);
   }
   function syncMode() {
     const mode = $("mode").value === "progress" ? "progress" : "new";
@@ -366,7 +392,6 @@ if (typeof document !== "undefined") {
   const usable = r => r && !r.error;
   function update() {
     formToScenario(scenarios[active]);
-    syncRecastFee();
     syncMode();
     results = scenarios.map(s => {
       const input = inputFrom(s);
@@ -388,8 +413,10 @@ if (typeof document !== "undefined") {
     if (usable(res)) drawTable(res);
     drawSummary();
     drawLumpNotes(res);
+    drawRecastNotes(res);
     drawPrepaidNote(res);
     LENIENT.forEach(f => $(f).classList.toggle("bad", Number.isNaN(parseAmount($(f).value))));
+    document.querySelectorAll(".recastFee").forEach(el => el.classList.toggle("bad", Number.isNaN(parseAmount(el.value))));
     document.querySelectorAll(".lumpAmt").forEach(el => el.classList.toggle("bad", Number.isNaN(parseAmount(el.value))));
     if (results.some(usable)) drawChart();
     drawCompare();
@@ -547,6 +574,43 @@ if (typeof document !== "undefined") {
   $("prepaidBox").addEventListener("input", e => {
     if (e.target.name === "prepaidBasis") $("dayBasis").value = e.target.value;
   });
+  function drawRecastNotes(res) {
+    [ ...document.querySelectorAll(".recastRow") ].forEach((row, k) => {
+      const note = row.querySelector(".recastNote");
+      let text = "", bad = false;
+      if (usable(res)) {
+        const st = res.input.recastIdx[k] || {
+          skip: "date"
+        };
+        const which = res.input.mode === "progress" ? "next payment due" : "first payment";
+        if (st.skip === "date") {
+          text = "Not counted: pick a month for this recast.";
+          bad = true;
+        } else if (st.skip === "fee") {
+          text = "Not counted: can't read that fee. Use digits, like 250.00.";
+          bad = true;
+        } else if (st.skip === "before") {
+          text = `Not counted: ${label(st.date)} is before the ${which} (${label(res.input.start)}).`;
+          bad = true;
+        } else if (st.skip === "dup") {
+          text = `Not counted: there's already a recast in ${label(st.date)}.`;
+          bad = true;
+        } else {
+          const rc = res.actual.recasts.find(x => x.n === st.idx + 1);
+          if (rc) text = `Recast after payment #${rc.n} (${label(dateFor(res.input.start, st.idx))}): P&I becomes ${fmt(rc.payment)} from ${label(dateFor(res.input.start, st.idx + 1))}.`; else if (!res.actual.rows[st.idx]) {
+            text = `Not counted: the loan is already paid off by then (${label(dateFor(res.input.start, res.actual.months - 1))}).`;
+            bad = true;
+          } else {
+            text = "Not counted: nothing left to recast after that payment.";
+            bad = true;
+          }
+        }
+      }
+      note.textContent = text;
+      note.hidden = !text;
+      note.classList.toggle("bad", bad);
+    });
+  }
   function drawLumpNotes(res) {
     const rows = [ ...document.querySelectorAll(".lump") ];
     rows.forEach((row, k) => {
@@ -740,7 +804,7 @@ if (typeof document !== "undefined") {
     $("compareEmpty").hidden = live.length >= 2;
     $("compareWrap").hidden = live.length < 2;
     if (live.length < 2) return;
-    const anyRecast = live.some(r => r.input.recast !== "none");
+    const anyRecast = live.some(r => r.actual.recasts.length > 0);
     const anyProgress = live.some(r => r.input.mode === "progress");
     const lumpTotal = r => Object.values(r.input.lumps).reduce((s, a) => s + a, 0);
     const monthlyAll = r => r.actual.payment + r.input.extraMonthly + r.escrow + (r.actual.rows[0]?.pmi || 0);
@@ -758,7 +822,7 @@ if (typeof document !== "undefined") {
         amt: amt,
         pct: (amt / r.input.principal * 100).toFixed(1)
       } : null;
-    }, v => v ? `${fmt(v.amt)} (${v.pct}%)` : "-" ] ] : [], [ "Interest rate", r => r.input.rate, v => `${v}%` ], [ anyProgress ? "Remaining term (no extra payments)" : "Term", r => r.baseline.months - (anyProgress ? paidSoFar(r).baselinePaid : 0), durationText ], ...anyProgress ? [ [ "Term (remaining)", r => r.actual.months - paidSoFar(r).payments, durationText, true ] ] : [], [ "Extra each month", r => r.input.extraMonthly, fmt ], [ "Extra payments by date", lumpTotal, fmt ], ...anyRecast ? [ [ "Recast", r => RECAST_LABEL[r.input.recast], v => v ] ] : [], null, [ "Monthly payment", monthlyAll, fmt, true ], ...anyRecast ? [ [ "P&I after recasts", r => r.actual.finalPayment, fmt, true ] ] : [], ...showPaid ? [ [ "Interest paid so far", interestPaidOf, v => v ? fmt(v) : "-" ], [ "Interest still to pay", stillToPayAll, fmt, true ] ] : [], [ "Total interest", totalInterestOf, fmt, live.every(r => r.input.mode !== "progress" || r.input.interestPaid > 0) ], [ "Payoff", payoffKeyOf, keyLabel, true ], [ "Time to payoff", r => r.actual.months, durationText, fair ], [ "Total paid", wholeLoanPaid, fmt, fair ], [ `Interest saved vs ${name0}`, r => vsOriginal(r.i)?.saved ?? null, v => v === null ? "-" : v <= -.005 ? `-${fmt(-v)}` : fmt(v), "high" ], [ `Payoff vs ${name0}`, r => vsOriginal(r.i)?.sooner ?? null, v => v === null ? "-" : v > 0 ? `${durationText(v)} sooner` : v < 0 ? `${durationText(-v)} later` : "Same", "high" ] ];
+    }, v => v ? `${fmt(v.amt)} (${v.pct}%)` : "-" ] ] : [], [ "Interest rate", r => r.input.rate, v => `${v}%` ], [ anyProgress ? "Remaining term (no extra payments)" : "Term", r => r.baseline.months - (anyProgress ? paidSoFar(r).baselinePaid : 0), durationText ], ...anyProgress ? [ [ "Term (remaining)", r => r.actual.months - paidSoFar(r).payments, durationText, true ] ] : [], [ "Extra each month", r => r.input.extraMonthly, fmt ], [ "Extra payments by date", lumpTotal, fmt ], ...anyRecast ? [ [ "Recasts", r => r.actual.recasts.map(x => label(dateFor(r.input.start, x.n - 1))).join(", ") || "-", v => v ] ] : [], null, [ "Monthly payment", monthlyAll, fmt, true ], ...anyRecast ? [ [ "P&I after recasts", r => r.actual.finalPayment, fmt, true ] ] : [], ...showPaid ? [ [ "Interest paid so far", interestPaidOf, v => v ? fmt(v) : "-" ], [ "Interest still to pay", stillToPayAll, fmt, true ] ] : [], [ "Total interest", totalInterestOf, fmt, live.every(r => r.input.mode !== "progress" || r.input.interestPaid > 0) ], [ "Payoff", payoffKeyOf, keyLabel, true ], [ "Time to payoff", r => r.actual.months, durationText, fair ], [ "Total paid", wholeLoanPaid, fmt, fair ], [ `Interest saved vs ${name0}`, r => vsOriginal(r.i)?.saved ?? null, v => v === null ? "-" : v <= -.005 ? `-${fmt(-v)}` : fmt(v), "high" ], [ `Payoff vs ${name0}`, r => vsOriginal(r.i)?.sooner ?? null, v => v === null ? "-" : v > 0 ? `${durationText(v)} sooner` : v < 0 ? `${durationText(-v)} later` : "Same", "high" ] ];
     let html = "<thead><tr><th></th>" + live.map(r => `<th><i class="sw" style="background:${color(r.i)}"></i>${esc(scenarios[r.i].name)}</th>`).join("") + "</tr></thead><tbody>";
     for (const row of rows) {
       if (!row) {
@@ -890,6 +954,9 @@ if (typeof document !== "undefined") {
         n: s.name,
         v: s.v,
         l: s.lumps.filter(([d, a]) => d && a),
+        ...(s.recasts || []).some(([d]) => d) ? {
+          r: s.recasts.filter(([d]) => d)
+        } : {},
         ...s.hide ? {
           h: 1
         } : {}
@@ -909,6 +976,7 @@ if (typeof document !== "undefined") {
             if (o.v && o.v[f] != null) s.v[f] = String(o.v[f]);
           });
           s.lumps = Array.isArray(o.l) ? o.l.map(([d, a, c, k]) => [ String(d), String(a), c == null ? "" : String(c), k === "series" || k === "one" ? k : "" ]) : [];
+          s.recasts = Array.isArray(o.r) ? o.r.map(([d, f]) => [ String(d), f == null ? "" : String(f) ]) : [];
           s.hide = o.h === 1;
           return s;
         });
@@ -958,6 +1026,10 @@ if (typeof document !== "undefined") {
   };
   $("addSeries").onclick = () => {
     addLump("", "", "", "series");
+    update();
+  };
+  $("addRecast").onclick = () => {
+    addRecast();
     update();
   };
   $("mode").addEventListener("input", () => {
