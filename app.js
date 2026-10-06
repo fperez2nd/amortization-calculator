@@ -106,6 +106,9 @@ function compute(input) {
     if (!(input.originalAmount > 0)) return {
       error: "Enter the original loan amount. The P&I payment is calculated from it, the original term and the rate."
     };
+    if (input.termLeft == null) return {
+      error: "Enter the First payment date of the loan."
+    };
     if (input.principal > input.originalAmount) return {
       error: "The current balance is higher than the original loan amount. Check both."
     };
@@ -357,6 +360,7 @@ if (typeof document !== "undefined") {
       recastAt: recastAt,
       recastIdx: recastIdx,
       termLeft: termLeft,
+      origStart: origStart,
       mode: s.v.mode === "progress" ? "progress" : "new",
       pmiMonthly: num("pmiMonthly"),
       originalAmount: num("originalAmount"),
@@ -646,7 +650,7 @@ if (typeof document !== "undefined") {
           text = `Not counted: ${label(st.date)} is before the ${which} (${label(res.input.start)}).`;
           bad = true;
         } else if (st.skip === "needStart") {
-          text = "Not counted: enter the Original first payment date in the Loan section, so the recast uses the true remaining term.";
+          text = "Not counted: enter the First payment date in the Loan section, so the recast uses the true remaining term.";
           bad = true;
         } else if (st.skip === "matured") {
           text = "Not counted: the original first payment and term put maturity before the next payment due. Check both.";
@@ -880,14 +884,14 @@ if (typeof document !== "undefined") {
     const showPaid = anyPaid || live.some(r => interestPaidOf(r) > 0);
     const stillToPayAll = r => round2(stillToPay(r) + ((prepaidOf(r)?.total || 0) - (r.input.mode === "new" ? paidSoFar(r).prepaid : 0)));
     const name0 = scenarios[0].name;
-    const rows = [ [ "First payment", r => label(r.input.start) + (r.input.mode === "progress" ? "" : " (new loan)"), v => v ], [ "Original loan amount", r => r.input.mode === "progress" ? r.input.originalAmount || null : r.input.principal, v => v === null ? "-" : fmt(v) ], ...anyProgress ? [ [ "Current balance", r => r.input.mode === "progress" ? r.input.principal : paidSoFar(r).balance, fmt ], [ "Paid off so far", r => {
+    const rows = [ [ "First payment", r => label(r.input.mode === "progress" ? r.input.origStart : r.input.start) + (r.input.mode === "progress" ? "" : " (new loan)"), v => v ], ...anyProgress ? [ [ "Next payment due", r => r.input.mode === "progress" ? label(r.input.start) : "-", v => v ] ] : [], [ "Original loan amount", r => r.input.mode === "progress" ? r.input.originalAmount || null : r.input.principal, v => v === null ? "-" : fmt(v) ], ...anyProgress ? [ [ "Current balance", r => r.input.mode === "progress" ? r.input.principal : paidSoFar(r).balance, fmt ], [ "Paid off so far", r => {
       if (r.input.mode === "progress") return paidOff(r.input);
       const amt = r.input.principal - paidSoFar(r).balance;
       return amt > 0 ? {
         amt: amt,
         pct: (amt / r.input.principal * 100).toFixed(1)
       } : null;
-    }, v => v ? `${fmt(v.amt)} (${v.pct}%)` : "-" ] ] : [], [ "Interest rate", r => r.input.rate, v => `${v}%` ], [ anyProgress ? "Remaining term (no extra payments)" : "Term", r => anyProgress ? remainingNoExtra(r) : r.baseline.months, durationText ], ...anyProgress ? [ [ "Term (remaining)", r => r.actual.months - paidSoFar(r).payments, durationText, true ] ] : [], [ "Extra each month", r => r.input.extraMonthly, fmt ], [ "Extra payments by date", lumpTotal, fmt ], ...anyRecast ? [ [ "Recasts", r => r.actual.recasts.map(x => label(dateFor(r.input.start, x.n - 1))).join(", ") || "-", v => v ] ] : [], null, [ "Monthly payment", monthlyAll, fmt, true ], ...anyRecast ? [ [ "P&I after recasts", r => r.actual.finalPayment, fmt, true ] ] : [], ...showPaid ? [ [ "Interest paid so far", interestPaidOf, v => v ? fmt(v) : "-" ], [ "Interest still to pay", stillToPayAll, fmt, true ] ] : [], [ "Total interest", totalInterestOf, fmt, live.every(r => r.input.mode !== "progress" || r.input.interestPaid > 0) ], [ "Payoff", payoffKeyOf, keyLabel, true ], [ "Time to payoff", r => r.actual.months, durationText, fair ], [ "Total paid", wholeLoanPaid, fmt, fair ], [ `Interest saved vs ${name0}`, r => vsOriginal(r.i)?.saved ?? null, v => v === null ? "-" : v <= -.005 ? `-${fmt(-v)}` : fmt(v), "high" ], [ `Payoff vs ${name0}`, r => vsOriginal(r.i)?.sooner ?? null, v => v === null ? "-" : v > 0 ? `${durationText(v)} sooner` : v < 0 ? `${durationText(-v)} later` : "Same", "high" ] ];
+    }, v => v ? `${fmt(v.amt)} (${v.pct}%)` : "-" ] ] : [], [ "Interest rate", r => r.input.rate, v => `${v}%` ], [ anyProgress ? "Remaining term (no extra payments)" : "Term", r => anyProgress ? remainingNoExtra(r) : r.baseline.months, durationText ], ...anyProgress ? [ [ "Term (remaining)", r => r.actual.months - paidSoFar(r).payments, durationText, true ] ] : [], [ "Extra each month", r => r.input.extraMonthly, fmt ], [ "Extra payments by date", lumpTotal, fmt ], ...anyRecast ? [ [ "Recasts", r => r.actual.recasts.map(x => label(dateFor(r.input.start, x.n - 1))).join(", ") || "-", v => v ] ] : [], null, [ "Monthly payment", monthlyAll, fmt, true ], ...anyRecast ? [ [ "P&I after recasts", r => r.actual.finalPayment, fmt, true ] ] : [], ...showPaid ? [ [ "Interest paid so far", interestPaidOf, v => v ? fmt(v) : "-" ], [ "Interest still to pay", stillToPayAll, fmt, true ] ] : [], [ "Total interest", totalInterestOf, fmt, live.every(r => r.input.mode !== "progress" || r.input.interestPaid > 0) ], [ "Payoff", payoffKeyOf, keyLabel, true ], [ "Time to payoff", r => payoffKeyOf(r) - monthKey(r.input.mode === "progress" ? r.input.origStart : r.input.start) + 1, durationText, true ], [ "Total paid", wholeLoanPaid, fmt, fair ], [ `Interest saved vs ${name0}`, r => vsOriginal(r.i)?.saved ?? null, v => v === null ? "-" : v <= -.005 ? `-${fmt(-v)}` : fmt(v), "high" ], [ `Payoff vs ${name0}`, r => vsOriginal(r.i)?.sooner ?? null, v => v === null ? "-" : v > 0 ? `${durationText(v)} sooner` : v < 0 ? `${durationText(-v)} later` : "Same", "high" ] ];
     let html = "<thead><tr><th></th>" + live.map(r => `<th><i class="sw" style="background:${color(r.i)}"></i>${esc(scenarios[r.i].name)}</th>`).join("") + "</tr></thead><tbody>";
     for (const row of rows) {
       if (!row) {

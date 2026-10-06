@@ -6,7 +6,7 @@
   <title>Amortization Calculator</title>
   <meta name="description" content="Loan and mortgage amortization calculator with extra payments, PITI, charts and CSV export.">
   <script>(function () { try { var t = localStorage.getItem('theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {} })();</script>
-  <link rel="stylesheet" href="style.css?v=55">
+  <link rel="stylesheet" href="style.css?v=56">
 </head>
 <body>
   <header>
@@ -51,8 +51,8 @@
         <label><span data-show="new">Term</span><span data-show="progress" hidden>Original term</span> <span class="unit">years</span>
           <input type="number" id="years" min="1" max="50" step="1" value="30" required>
         </label>
-        <label data-show="progress" hidden>Original first payment
-          <input type="date" id="origStart">
+        <label data-show="progress" hidden>First payment
+          <input type="date" id="origStart" required>
         </label>
         <label data-show="progress" hidden>P&amp;I payment <span class="unit">$ / mo, calculated</span>
           <input type="text" id="payment" readonly tabindex="-1" class="computed">
@@ -190,6 +190,6 @@
     </div>
   </template>
 
-  <script src="app.js?v=55"></script>
+  <script src="app.js?v=56"></script>
 </body>
 </html>
