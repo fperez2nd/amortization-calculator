@@ -201,7 +201,7 @@ input.bad { border-color: var(--s2); box-shadow: 0 0 0 1px var(--s2); }
 #addRecast { margin-bottom: 8px; }
 #table tbody tr.ms1 td { background: color-mix(in srgb, var(--s4) 38%, var(--surface)); font-weight: 600; }
 #table tbody tr.ms2 td { background: color-mix(in srgb, var(--s3) 38%, var(--surface)); font-weight: 600; }
-#table tbody tr.ms1.ms2 td { background: linear-gradient(90deg, color-mix(in srgb, var(--s4) 38%, var(--surface)), color-mix(in srgb, var(--s3) 38%, var(--surface))); }
+#table tbody tr.ms1.ms2 td { background: linear-gradient(to bottom, color-mix(in srgb, var(--s4) 38%, var(--surface)) 50%, color-mix(in srgb, var(--s3) 38%, var(--surface)) 50%); }
 .extraRow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 8px; align-items: end; }
 .extraRow label { margin-bottom: 10px; white-space: nowrap; }
 .extraRow input { padding-left: 7px; padding-right: 4px; }

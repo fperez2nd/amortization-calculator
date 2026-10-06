@@ -971,7 +971,7 @@ if (typeof document !== "undefined") {
     }
     return {
       cls: cls,
-      tip: tip.join(". ")
+      tip: tip.join("\n")
     };
   }
   function drawTable(res) {
@@ -990,7 +990,7 @@ if (typeof document !== "undefined") {
         const lump = input.lumps[i] ? ' class="lumpmark"' : "";
         const m = milestoneAttrs(ms, [ i ]);
         const cls = [ ...src.recastTo ? [ "recast" ] : [], ...m.cls ];
-        const tip = [ src.recastTo ? "Recast: next payment " + fmt(src.recastTo) : "", m.tip ].filter(Boolean).join(". ");
+        const tip = [ src.recastTo ? "Recast: next payment " + fmt(src.recastTo) : "", m.tip ].filter(Boolean).join("\n");
         html += `<tr${cls.length ? ` class="${cls.join(" ")}"` : ""}${tip ? ` title="${esc(tip)}"` : ""}><td>${r[0]}</td><td>${r[1]}</td>` + r.slice(2).map((v, k) => `<td${k + 2 === extraCol ? lump : ""}>${cell(v, k + 2)}</td>`).join("") + "</tr>";
       });
     } else {
