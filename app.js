@@ -884,7 +884,7 @@ if (typeof document !== "undefined") {
     const showPaid = anyPaid || live.some(r => interestPaidOf(r) > 0);
     const stillToPayAll = r => round2(stillToPay(r) + ((prepaidOf(r)?.total || 0) - (r.input.mode === "new" ? paidSoFar(r).prepaid : 0)));
     const name0 = scenarios[0].name;
-    const rows = [ [ "First payment", r => label(r.input.mode === "progress" ? r.input.origStart : r.input.start) + (r.input.mode === "progress" ? "" : " (new loan)"), v => v ], ...anyProgress ? [ [ "Next payment due", r => r.input.mode === "progress" ? label(r.input.start) : "-", v => v ] ] : [], [ "Original loan amount", r => r.input.mode === "progress" ? r.input.originalAmount || null : r.input.principal, v => v === null ? "-" : fmt(v) ], ...anyProgress ? [ [ "Current balance", r => r.input.mode === "progress" ? r.input.principal : paidSoFar(r).balance, fmt ], [ "Paid off so far", r => {
+    const rows = [ [ "Original loan amount", r => r.input.mode === "progress" ? r.input.originalAmount || null : r.input.principal, v => v === null ? "-" : fmt(v) ], ...anyProgress ? [ [ "Current balance", r => r.input.mode === "progress" ? r.input.principal : paidSoFar(r).balance, fmt ], [ "Paid off so far", r => {
       if (r.input.mode === "progress") return paidOff(r.input);
       const amt = r.input.principal - paidSoFar(r).balance;
       return amt > 0 ? {
