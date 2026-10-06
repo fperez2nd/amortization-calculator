@@ -53,11 +53,10 @@ body {
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 header, main, footer, .tabs { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
-header { padding-top: 28px; padding-bottom: 8px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px 16px; }
+header { padding-top: 28px; padding-bottom: 8px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px 16px; }
 .theme { flex: none; }
 h1 { margin: 0; font-size: 1.6rem; }
 h2 { margin: 0; font-size: 1.05rem; }
-.sub { margin: 4px 0 0; color: var(--muted); }
 main {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
