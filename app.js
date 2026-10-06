@@ -14,6 +14,7 @@ function amortize(opts) {
   const r = rate / 100 / 12;
   const payment = opts.payment > 0 ? round2(opts.payment) : monthlyPayment(principal, rate, months);
   const extraMonthly = opts.extraMonthly || 0;
+  const extraFrom = Math.max(opts.extraFrom || 0, 0);
   const lumps = opts.lumps || {};
   const recastAt = opts.recastAt || {};
   const pmiMonthly = !(opts.homeValue > 0) ? 0 : opts.pmiMonthly > 0 ? round2(opts.pmiMonthly) : opts.pmiRate > 0 ? round2(principal * opts.pmiRate / 100 / 12) : 0;
@@ -31,7 +32,7 @@ function amortize(opts) {
     const lastIdx = recasts.length ? (opts.termLeft || months) - 1 : months - 1;
     let scheduled = i === lastIdx ? balance : Math.min(pmt - interest, balance);
     if (scheduled < 0) scheduled = 0;
-    let extra = Math.min(extraMonthly + (lumps[i] || 0), round2(balance - scheduled));
+    let extra = Math.min((i >= extraFrom ? extraMonthly : 0) + (lumps[i] || 0), round2(balance - scheduled));
     if (extra < 0) extra = 0;
     const principalPaid = round2(scheduled + extra);
     balance = round2(balance - principalPaid);
@@ -143,6 +144,7 @@ function compute(input) {
   const actual = amortize({
     ...base,
     extraMonthly: input.extraMonthly,
+    extraFrom: input.extraFrom,
     lumps: input.lumps,
     prepay: input.prepay,
     recastAt: input.recastAt,
@@ -181,7 +183,7 @@ if (typeof document !== "undefined") {
     '"': "&quot;",
     "'": "&#39;"
   }[ch]));
-  const fields = [ "mode", "originalAmount", "principal", "interestPaid", "rate", "years", "origStart", "start", "closingDate", "dayBasis", "extraMonthly", "homeValue", "tax", "insurance", "pmi", "pmiMonthly", "hoa" ];
+  const fields = [ "mode", "originalAmount", "principal", "interestPaid", "rate", "years", "origStart", "start", "closingDate", "dayBasis", "extraMonthly", "extraStart", "homeValue", "tax", "insurance", "pmi", "pmiMonthly", "hoa" ];
   const MORTGAGE_FIELDS = [ "homeValue", "tax", "insurance", "pmi", "pmiMonthly", "hoa" ];
   const MAX_SCENARIOS = 4;
   const MONTHS = [ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" ];
@@ -374,6 +376,7 @@ if (typeof document !== "undefined") {
       extraMonthly: num("extraMonthly"),
       lumps: lumps,
       prepay: prepay,
+      extraFrom: (m => m ? Math.max(monthKey(m) - monthKey(start), 0) : 0)(parseMonth(s.v.extraStart)),
       homeValue: num("homeValue"),
       tax: num("tax"),
       insurance: num("insurance"),
@@ -444,6 +447,7 @@ if (typeof document !== "undefined") {
     drawLumpNotes(res);
     drawRecastNotes(res);
     drawPrepaidNote(res);
+    drawExtraNote(res);
     LENIENT.forEach(f => $(f).classList.toggle("bad", Number.isNaN(parseAmount($(f).value))));
     document.querySelectorAll(".recastFee").forEach(el => el.classList.toggle("bad", Number.isNaN(parseAmount(el.value))));
     document.querySelectorAll(".lumpAmt").forEach(el => el.classList.toggle("bad", Number.isNaN(parseAmount(el.value))));
@@ -547,7 +551,7 @@ if (typeof document !== "undefined") {
     const monthlyAll = actual.payment + input.extraMonthly + escrow + firstPmi;
     $("outPayment").textContent = fmt(monthlyAll);
     const parts = [ `P&I ${fmt(actual.payment)}` ];
-    if (input.extraMonthly) parts.push(`extra ${fmt(input.extraMonthly)}`);
+    if (input.extraMonthly) parts.push(`extra ${fmt(input.extraMonthly)}` + (input.extraFrom > 0 ? ` from ${label(dateFor(input.start, input.extraFrom))}` : ""));
     if (escrow) parts.push(`tax/ins/HOA ${fmt(escrow)}`);
     if (firstPmi) parts.push(`PMI ${fmt(firstPmi)}`);
     let detail = esc(parts.join(" + "));
@@ -631,6 +635,20 @@ if (typeof document !== "undefined") {
   $("prepaidBox").addEventListener("input", e => {
     if (e.target.name === "prepaidBasis") $("dayBasis").value = e.target.value;
   });
+  function drawExtraNote(res) {
+    const note = $("extraNote");
+    let text = "", bad = false;
+    if (usable(res) && res.input.extraMonthly > 0) {
+      const i = res.input.extraFrom;
+      if (res.actual.rows[i]) text = `Starts with payment #${i + 1} (${label(dateFor(res.input.start, i))}).`; else {
+        text = `Not counted: the loan is already paid off by then (${label(dateFor(res.input.start, res.actual.months - 1))}).`;
+        bad = true;
+      }
+    }
+    note.textContent = text;
+    note.hidden = !text;
+    note.classList.toggle("bad", bad);
+  }
   function drawRecastNotes(res) {
     [ ...document.querySelectorAll(".recastRow") ].forEach((row, k) => {
       const note = row.querySelector(".recastNote");
@@ -891,7 +909,7 @@ if (typeof document !== "undefined") {
         amt: amt,
         pct: (amt / r.input.principal * 100).toFixed(1)
       } : null;
-    }, v => v ? `${fmt(v.amt)} (${v.pct}%)` : "-" ] ] : [], [ "Interest rate", r => r.input.rate, v => `${v}%` ], [ anyProgress ? "Term remaining (no extra payments)" : "Term", r => anyProgress ? remainingNoExtra(r) : r.baseline.months, durationText ], ...anyProgress ? [ [ "Term remaining (with extra payments)", r => r.actual.months - paidSoFar(r).payments, durationText, true ] ] : [], [ "Extra each month", r => r.input.extraMonthly, fmt ], [ "Extra payments by date", lumpTotal, fmt ], ...anyRecast ? [ [ "Recasts", r => r.actual.recasts.map(x => label(dateFor(r.input.start, x.n - 1))).join(", ") || "-", v => v ] ] : [], null, [ "Monthly payment", monthlyAll, fmt, true ], ...anyRecast ? [ [ "P&I after recasts", r => r.actual.finalPayment, fmt, true ] ] : [], ...showPaid ? [ [ "Interest paid so far", interestPaidOf, v => v ? fmt(v) : "-" ], [ "Interest still to pay", stillToPayAll, fmt, true ] ] : [], [ "Total interest", totalInterestOf, fmt, live.every(r => r.input.mode !== "progress" || r.input.interestPaid > 0) ], [ "Payoff", payoffKeyOf, keyLabel, true ], [ "Time to payoff", r => payoffKeyOf(r) - monthKey(r.input.mode === "progress" ? r.input.origStart : r.input.start) + 1, durationText, true ], [ "Total paid", wholeLoanPaid, fmt, fair ], [ `Interest saved vs ${name0}`, r => vsOriginal(r.i)?.saved ?? null, v => v === null ? "-" : v <= -.005 ? `-${fmt(-v)}` : fmt(v), "high" ], [ `Payoff vs ${name0}`, r => vsOriginal(r.i)?.sooner ?? null, v => v === null ? "-" : v > 0 ? `${durationText(v)} sooner` : v < 0 ? `${durationText(-v)} later` : "Same", "high" ] ];
+    }, v => v ? `${fmt(v.amt)} (${v.pct}%)` : "-" ] ] : [], [ "Interest rate", r => r.input.rate, v => `${v}%` ], [ anyProgress ? "Term remaining (no extra payments)" : "Term", r => anyProgress ? remainingNoExtra(r) : r.baseline.months, durationText ], ...anyProgress ? [ [ "Term remaining (with extra payments)", r => r.actual.months - paidSoFar(r).payments, durationText, true ] ] : [], [ "Extra each month", r => fmt(r.input.extraMonthly) + (r.input.extraMonthly && r.input.extraFrom > 0 ? ` from ${label(dateFor(r.input.start, r.input.extraFrom))}` : ""), v => v ], [ "Extra payments by date", lumpTotal, fmt ], ...anyRecast ? [ [ "Recasts", r => r.actual.recasts.map(x => label(dateFor(r.input.start, x.n - 1))).join(", ") || "-", v => v ] ] : [], null, [ "Monthly payment", monthlyAll, fmt, true ], ...anyRecast ? [ [ "P&I after recasts", r => r.actual.finalPayment, fmt, true ] ] : [], ...showPaid ? [ [ "Interest paid so far", interestPaidOf, v => v ? fmt(v) : "-" ], [ "Interest still to pay", stillToPayAll, fmt, true ] ] : [], [ "Total interest", totalInterestOf, fmt, live.every(r => r.input.mode !== "progress" || r.input.interestPaid > 0) ], [ "Payoff", payoffKeyOf, keyLabel, true ], [ "Time to payoff", r => payoffKeyOf(r) - monthKey(r.input.mode === "progress" ? r.input.origStart : r.input.start) + 1, durationText, true ], [ "Total paid", wholeLoanPaid, fmt, fair ], [ `Interest saved vs ${name0}`, r => vsOriginal(r.i)?.saved ?? null, v => v === null ? "-" : v <= -.005 ? `-${fmt(-v)}` : fmt(v), "high" ], [ `Payoff vs ${name0}`, r => vsOriginal(r.i)?.sooner ?? null, v => v === null ? "-" : v > 0 ? `${durationText(v)} sooner` : v < 0 ? `${durationText(-v)} later` : "Same", "high" ] ];
     let html = "<thead><tr><th></th>" + live.map(r => `<th><i class="sw" style="background:${color(r.i)}"></i>${esc(scenarios[r.i].name)}</th>`).join("") + "</tr></thead><tbody>";
     for (const row of rows) {
       if (!row) {

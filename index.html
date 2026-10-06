@@ -6,7 +6,7 @@
   <title>Amortization Calculator</title>
   <meta name="description" content="Loan and mortgage amortization calculator with extra payments, PITI, charts and CSV export.">
   <script>(function () { try { var t = localStorage.getItem('theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {} })();</script>
-  <link rel="stylesheet" href="style.css?v=58">
+  <link rel="stylesheet" href="style.css?v=59">
 </head>
 <body>
   <header>
@@ -69,9 +69,15 @@
 
       <fieldset>
         <legend>Extra monthly payments</legend>
-        <label>Extra each month <span class="unit">$</span>
-          <input type="text" inputmode="decimal" id="extraMonthly" value="0">
-        </label>
+        <div class="extraRow">
+          <label>Extra each month <span class="unit">$</span>
+            <input type="text" inputmode="decimal" id="extraMonthly" value="0">
+          </label>
+          <label>Starting
+            <input type="date" id="extraStart">
+          </label>
+          <p class="fieldNote" id="extraNote" hidden></p>
+        </div>
         <div class="sub-legend group">One-time payments</div>
         <div id="lumps"></div>
         <button type="button" id="addLump" class="link">+ Add one-time payment</button>
@@ -190,6 +196,6 @@
     </div>
   </template>
 
-  <script src="app.js?v=58"></script>
+  <script src="app.js?v=59"></script>
 </body>
 </html>
