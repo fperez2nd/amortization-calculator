@@ -485,12 +485,20 @@ if (typeof document !== "undefined") {
   function vsOriginal(i) {
     const o = results[0], r = results[i];
     if (i === 0 || !usable(o) || !usable(r)) return null;
+    const known = x => x.input.mode !== "progress" || x.input.interestPaid > 0;
+    const sooner = payoffKeyOf(o) - payoffKeyOf(r);
+    if (known(o) && known(r)) return {
+      name: scenarios[0].name,
+      from: null,
+      saved: round2(totalInterestOf(o) - totalInterestOf(r)),
+      sooner: sooner
+    };
     const from = monthKey(r.input.start);
     return {
       name: scenarios[0].name,
       from: from,
       saved: round2(interestFrom(o, from) - r.actual.totalInterest),
-      sooner: payoffKeyOf(o) - payoffKeyOf(r)
+      sooner: sooner
     };
   }
   function drawSummary() {
@@ -531,8 +539,8 @@ if (typeof document !== "undefined") {
     }
     const vs = vsOriginal(i);
     if (vs) {
-      const name = esc(vs.name), from = keyLabel(vs.from);
-      $("outInterestDetail").innerHTML = vs.saved >= .005 ? `<span class="save">${fmt(vs.saved)} saved</span> vs ${name}, counting from ${from}` : vs.saved <= -.005 ? `${fmt(-vs.saved)} more than ${name}, counting from ${from}` : `Same as ${name}, counting from ${from}`;
+      const name = esc(vs.name), span = vs.from === null ? "over the whole loan" : `counting from ${keyLabel(vs.from)}`;
+      $("outInterestDetail").innerHTML = vs.saved >= .005 ? `<span class="save">${fmt(vs.saved)} saved</span> vs ${name}, ${span}` : vs.saved <= -.005 ? `${fmt(-vs.saved)} more than ${name}, ${span}` : `Same as ${name}, ${span}`;
       $("outPayoffDetail").innerHTML = (vs.sooner > 0 ? `<span class="save">${durationText(vs.sooner)} sooner</span> than ${name}` : vs.sooner < 0 ? `${durationText(-vs.sooner)} later than ${name}` : `Same as ${name}`) + ` &middot; ${durationText(actual.months)} from ${keyLabel(monthKey(input.start))}`;
     } else {
       const p = paidSoFar(res);
