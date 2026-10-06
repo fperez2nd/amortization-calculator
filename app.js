@@ -21,7 +21,8 @@ function amortize(opts) {
   const rows = [];
   const recasts = [];
   let pmt = payment;
-  let balance = principal;
+  const prepay = Math.min(Math.max(opts.prepay || 0, 0), principal);
+  let balance = round2(principal - prepay);
   let totalInterest = 0;
   let totalPmi = 0;
   const term = Math.max(opts.termLeft || months, months);
@@ -43,7 +44,7 @@ function amortize(opts) {
       payment: pmt,
       interest: interest,
       principal: round2(scheduled),
-      extra: round2(extra),
+      extra: round2(extra + (i === 0 ? prepay : 0)),
       balance: Math.max(balance, 0),
       pmi: pmi,
       cumInterest: round2(totalInterest)
@@ -140,6 +141,7 @@ function compute(input) {
     ...base,
     extraMonthly: input.extraMonthly,
     lumps: input.lumps,
+    prepay: input.prepay,
     recastAt: input.recastAt,
     termLeft: input.termLeft,
     pmiCutoff: cutoff
@@ -275,6 +277,7 @@ if (typeof document !== "undefined") {
       m: today.getMonth()
     };
     const lumps = {};
+    let prepay = 0;
     const lumpIdx = s.lumps.map(([d, a, c]) => {
       const dm = parseMonth(d), amt = parseAmount(a);
       if (amt === null || amt === 0) return {
@@ -291,14 +294,20 @@ if (typeof document !== "undefined") {
         skip: "count"
       };
       const idx = monthKey(dm) - monthKey(start);
-      if (idx + count - 1 < 0) return {
+      if (idx + count - 1 < -1) return {
         skip: "before",
         date: dm,
         count: count
       };
       const idxs = [];
+      let pre = 0;
       for (let k = 0; k < count; k++) {
-        if (idx + k < 0) continue;
+        if (idx + k < -1) continue;
+        if (idx + k === -1) {
+          prepay += amt;
+          pre = 1;
+          continue;
+        }
         lumps[idx + k] = (lumps[idx + k] || 0) + amt;
         idxs.push(idx + k);
       }
@@ -306,7 +315,8 @@ if (typeof document !== "undefined") {
         idx: idx,
         count: count,
         idxs: idxs,
-        before: count - idxs.length
+        pre: pre,
+        before: count - idxs.length - pre
       };
     });
     const progress = s.v.mode === "progress";
@@ -359,6 +369,7 @@ if (typeof document !== "undefined") {
       start: start,
       extraMonthly: num("extraMonthly"),
       lumps: lumps,
+      prepay: prepay,
       homeValue: num("homeValue"),
       tax: num("tax"),
       insurance: num("insurance"),
@@ -478,7 +489,7 @@ if (typeof document !== "undefined") {
     if (r.input.mode === "progress") return {
       interest: 0,
       payments: 0,
-      balance: r.input.principal,
+      balance: round2(Math.max(r.input.principal - r.input.prepay, 0)),
       baselinePaid: 0,
       prepaid: 0
     };
@@ -686,14 +697,20 @@ if (typeof document !== "undefined") {
           const paidOffBy = label(dateFor(res.input.start, res.actual.months - 1));
           const applied = st.idxs.filter(i => res.actual.rows[i]);
           const after = st.idxs.length - applied.length;
-          if (!applied.length) {
+          const used = applied.length + st.pre;
+          const preText = `before payment #1 (${startLabel})`;
+          if (!used) {
             text = `Not counted: the loan is already paid off by then (${paidOffBy}).`;
             bad = true;
-          } else if (st.count === 1) text = `Applied with payment #${applied[0] + 1} (${label(dateFor(res.input.start, applied[0]))}).`; else {
-            const a = applied[0], b = applied[applied.length - 1];
-            const range = a === b ? `payment #${a + 1} (${label(dateFor(res.input.start, a))})` : `payments #${a + 1}–${b + 1} (${label(dateFor(res.input.start, a))} – ${label(dateFor(res.input.start, b))})`;
+          } else if (st.count === 1) text = st.pre ? `Applied ${preText}, lowering the balance from the start.` : `Applied with payment #${applied[0] + 1} (${label(dateFor(res.input.start, applied[0]))}).`; else {
+            let range = "";
+            if (applied.length) {
+              const a = applied[0], b = applied[applied.length - 1];
+              range = a === b ? `payment #${a + 1} (${label(dateFor(res.input.start, a))})` : `payments #${a + 1}–${b + 1} (${label(dateFor(res.input.start, a))} – ${label(dateFor(res.input.start, b))})`;
+            }
+            range = [ st.pre && `1 ${preText}`, range ].filter(Boolean).join(", then ");
             const missed = [ st.before && `${st.before} before the ${which}`, after && `${after} after payoff in ${paidOffBy}` ].filter(Boolean);
-            text = applied.length === st.count ? `Applied with ${range}.` : `Applied ${applied.length} of ${st.count}: ${range}. Not counted: ${missed.join(", ")}.`;
+            text = used === st.count ? `Applied ${range}.`.replace(/^Applied payment/, "Applied with payment") : `Applied ${used} of ${st.count}: ${range}. Not counted: ${missed.join(", ")}.`;
           }
         }
       }
@@ -854,7 +871,7 @@ if (typeof document !== "undefined") {
     if (live.length < 2) return;
     const anyRecast = live.some(r => r.actual.recasts.length > 0);
     const anyProgress = live.some(r => r.input.mode === "progress");
-    const lumpTotal = r => Object.values(r.input.lumps).reduce((s, a) => s + a, 0);
+    const lumpTotal = r => Object.values(r.input.lumps).reduce((s, a) => s + a, r.input.prepay);
     const monthlyAll = r => r.actual.payment + r.input.extraMonthly + r.escrow + (r.actual.rows[0]?.pmi || 0);
     const anyPaid = live.some(r => paidSoFar(r).payments > 0);
     const fair = !anyPaid;
