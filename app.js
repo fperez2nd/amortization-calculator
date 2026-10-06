@@ -963,11 +963,11 @@ if (typeof document !== "undefined") {
     const cls = [], tip = [];
     if (idxs.includes(ms.interest)) {
       cls.push("ms1");
-      tip.push("Interest ≤ principal from here");
+      tip.push("Interest ≤ principal from here.");
     }
     if (idxs.includes(ms.halve)) {
       cls.push("ms2");
-      tip.push(`A recast here would cut P&I to ${fmt(ms.halvePmt)}, half or less of the original`);
+      tip.push(`A recast here would cut P&I to ${fmt(ms.halvePmt)}, half or less of the original.`);
     }
     return {
       cls: cls,
